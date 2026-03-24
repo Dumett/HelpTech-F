@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Gestión de Productos</h1>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <section class="main-content">
+        <div class="container">
+            <!-- Botón para agregar nuevo producto -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 15px;">
+                <a href="{{ url_for('add_product') }}" class="btn-action" style="background: #2ecc71;">
+                    + NUEVO PRODUCTO
+                </a>
+            </div>
+
+            {% if products %}
+            <div class="card">
+                <h3 class="card-title">Lista de Productos</h3>
+                
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Nombre</th>
+                                <th>Categoría</th>
+                                <th>Precio</th>
+                                <th>Stock</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for product in products %}
+                            <tr>
+                                <td>{{ product.code }}</td>
+                                <td>{{ product.name }}</td>
+                                <td>{{ product.category or 'N/A' }}</td>
+                                <td>${{ "%.2f"|format(product.unit_price) }}</td>
+                                <td>
+                                    <span class="badge {% if product.stock > 10 %}badge-success{% elif product.stock > 0 %}badge-warning{% else %}badge-danger{% endif %}">
+                                        {{ product.stock }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('view_product', product_id=product.id) }}" class="btn-icon" title="Consultar">
+                                        <i class="icon-view">👁️</i>
+                                    </a>
+                                    <a href="{{ url_for('edit_product', product_id=product.id) }}" class="btn-icon" title="Modificar">
+                                        <i class="icon-edit">✏️</i>
+                                    </a>
+                                    <a href="{{ url_for('delete_product', product_id=product.id) }}" class="btn-icon" title="Eliminar" onclick="return confirm('¿Estás seguro de que quieres eliminar este producto?')">
+                                        <i class="icon-delete">🗑️</i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <h3>No hay productos registrados</h3>
+                <p>Comienza agregando tu primer producto</p>
+                <a href="{{ url_for('add_product') }}" class="btn-action" style="background: #2ecc71;">
+                    AGREGAR PRIMER PRODUCTO
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

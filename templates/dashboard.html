@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Facturas y control</h1>
+        </div>
+    </section>
+
+    <!-- Dashboard Content -->
+    <section class="main-content">
+        <div class="container">
+            <div style="text-align: center;">
+                <h2 style="color: #4DA6FF; margin-bottom: 20px;">¡Bienvenido, {{ user.name }}!</h2>
+                
+                <!-- Tarjetas de módulos -->
+                <div class="modules-grid">
+                    <!-- Módulo Clientes -->
+                    <div class="module-card module-clients">
+                        <h3>👥 CLIENTES</h3>
+                        <p>Gestiona la información de tus clientes</p>
+                        <a href="{{ url_for('client_management') }}" class="module-btn">
+                            GESTIONAR
+                        </a>
+                    </div>
+
+                    <!-- Módulo Productos -->
+                    <div class="module-card module-products">
+                        <h3>📦 PRODUCTOS</h3>
+                        <p>Administra tu catálogo de productos</p>
+                        <a href="{{ url_for('product_management') }}" class="module-btn">
+                            GESTIONAR
+                        </a>
+                    </div>
+
+                    <!-- Módulo Facturas -->
+                    <div class="module-card module-invoices">
+                        <h3>🧾 FACTURAS</h3>
+                        <p>Crea y gestiona tus facturas sin problemas</p>
+                        <a href="{{ url_for('invoice_management') }}" class="module-btn">
+                            GESTIONAR
+                        </a>
+                    </div>
+
+                <!-- Información de la cuenta -->
+                <div class="account-info">
+                    <h3>Información de tu cuenta</h3>
+                    <div class="account-details">
+                        <div>
+                            <strong>Email:</strong> {{ user.email }}
+                        </div>
+                        {% if user.company %}
+                        <div>
+                            <strong>Empresa:</strong> {{ user.company }}
+                        </div>
+                        {% endif %}
+                        <div>
+                            <strong>Miembro desde:</strong> {{ user.created_at_formatted }}
+                        </div>
+                        <div>
+                            <strong>Estado:</strong> <span class="status-active">Activo</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <style>
+        .modules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin: 30px 0;
+        }
+        
+        .module-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            border-left: 4px solid;
+            transition: transform 0.3s ease;
+        }
+        
+        .module-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .module-clients {
+            border-left-color: #4DA6FF;
+        }
+        
+        .module-products {
+            border-left-color: #2ecc71;
+        }
+        
+        .module-invoices {
+            border-left-color: #f39c12;
+        }
+        
+        .module-taxes {
+            border-left-color: #9b59b6;
+        }
+        
+        .module-card h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+        
+        .module-card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        
+        .module-btn {
+            background: #4DA6FF;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        
+        .module-clients .module-btn {
+            background: #4DA6FF;
+        }
+        
+        .module-products .module-btn {
+            background: #2ecc71;
+        }
+        
+        .module-invoices .module-btn {
+            background: #f39c12;
+        }
+        
+        .module-taxes .module-btn {
+            background: #9b59b6;
+        }
+        
+        .module-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        
+        .account-info {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 10px;
+            max-width: 600px;
+            margin: 30px auto;
+        }
+        
+        .account-info h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 15px;
+        }
+        
+        .account-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            text-align: left;
+        }
+        
+        .account-details div {
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            border-left: 3px solid #4DA6FF;
+        }
+        
+        .status-active {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .modules-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .account-details {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+{% endblock %}

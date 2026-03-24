@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Factura #{{ invoice.invoice_number }} - HelpTech{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 text-gray-800">Factura #{{ invoice.invoice_number }}</h1>
+        <div>
+            <a href="{{ url_for('invoice_management') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+            <button onclick="window.print()" class="btn btn-primary">
+                <i class="fas fa-print"></i> Imprimir
+            </button>
+            <a href="#" class="btn btn-success" onclick="downloadPDF()">
+                <i class="fas fa-download"></i> PDF
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4" id="invoicePrint">
+        <div class="card-body">
+            <!-- Encabezado de la factura -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h4 class="text-primary">HelpTech</h4>
+                    <p class="mb-1">Sistema de Gestión de Facturación</p>
+                    <p class="mb-0">Factura #{{ invoice.invoice_number }}</p>
+                </div>
+                <div class="col-md-6 text-right">
+                    <h5 class="font-weight-bold">FACTURA</h5>
+                    <p class="mb-1"><strong>Fecha:</strong> {{ invoice.invoice_date }}</p>
+                    <p class="mb-1"><strong>Vence:</strong> {{ invoice.due_date }}</p>
+                    <p class="mb-0">
+                        <strong>Estado:</strong>
+                        <span class="badge 
+                            {% if invoice.status == 'Pagada' %}badge-success
+                            {% elif invoice.status == 'Pendiente' %}badge-warning
+                            {% elif invoice.status == 'Vencida' %}badge-danger
+                            {% else %}badge-secondary{% endif %}">
+                            {{ invoice.status }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Información del cliente -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="border p-3">
+                        <h6 class="font-weight-bold">CLIENTE</h6>
+                        <p class="mb-1"><strong>Nombre:</strong> {{ invoice.client_name }}</p>
+                        {% if invoice.address %}
+                        <p class="mb-1"><strong>Dirección:</strong> {{ invoice.address }}</p>
+                        {% endif %}
+                        {% if invoice.phone %}
+                        <p class="mb-1"><strong>Teléfono:</strong> {{ invoice.phone }}</p>
+                        {% endif %}
+                        {% if invoice.email %}
+                        <p class="mb-0"><strong>Email:</strong> {{ invoice.email }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detalle de productos -->
+            <div class="table-responsive mb-4">
+                <table class="table table-bordered">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Producto/Servicio</th>
+                            <th>Cantidad</th>
+                            <th>Precio Unitario</th>
+                            <th>IVA (%)</th>
+                            <th>Subtotal</th>
+                            <th>IVA</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ item.product_name or item.product_code or 'Producto' }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>${{ "%.2f"|format(item.unit_price) }}</td>
+                            <td>{{ item.tax_rate }}%</td>
+                            <td>${{ "%.2f"|format(item.subtotal) }}</td>
+                            <td>${{ "%.2f"|format(item.tax_amount) }}</td>
+                            <td>${{ "%.2f"|format(item.total) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="font-weight-bold">
+                        <tr>
+                            <td colspan="5" class="text-right">TOTALES:</td>
+                            <td>${{ "%.2f"|format(totals.subtotal or 0) }}</td>
+                            <td>${{ "%.2f"|format(totals.tax or 0) }}</td>
+                            <td>${{ "%.2f"|format(totals.total or 0) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Observaciones -->
+            {% if invoice.notes %}
+            <div class="mb-4">
+                <h6 class="font-weight-bold">OBSERVACIONES</h6>
+                <p class="border p-3">{{ invoice.notes }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Información adicional -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="border p-3">
+                        <h6 class="font-weight-bold">INFORMACIÓN ADICIONAL</h6>
+                        <p class="mb-1"><strong>Fecha de creación:</strong> {{ invoice.created_at }}</p>
+                        {% if invoice.updated_at %}
+                        <p class="mb-0"><strong>Última actualización:</strong> {{ invoice.updated_at }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botones de acción -->
+    <div class="d-flex justify-content-between">
+        <div>
+            <a href="{{ url_for('invoice_management') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Facturas
+            </a>
+        </div>
+        <div>
+            {% if invoice.status != 'Anulada' %}
+            <a href="{{ url_for('delete_invoice', invoice_id=invoice.id) }}" 
+               class="btn btn-danger" 
+               onclick="return confirm('¿Está seguro de eliminar esta factura?')">
+                <i class="fas fa-trash"></i> Eliminar Factura
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function downloadPDF() {
+    alert('Funcionalidad de PDF en desarrollo. Use el botón de imprimir para guardar como PDF.');
+    // Para implementar PDF real, necesitarías una librería como jsPDF
+}
+
+// Configuración para imprimir
+window.onbeforeprint = function() {
+    // Ocultar elementos no necesarios para imprimir
+    document.querySelectorAll('.btn, .navbar, .sidebar, .footer').forEach(el => {
+        el.classList.add('d-print-none');
+    });
+};
+
+window.onafterprint = function() {
+    // Restaurar elementos
+    document.querySelectorAll('.btn, .navbar, .sidebar, .footer').forEach(el => {
+        el.classList.remove('d-print-none');
+    });
+};
+</script>
+
+<style>
+@media print {
+    .btn, .navbar, .sidebar, .footer {
+        display: none !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+    
+    .table {
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    #invoicePrint {
+        padding: 0 !important;
+    }
+}
+</style>
+{% endblock %}

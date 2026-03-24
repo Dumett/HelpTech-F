@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Gestión de Facturas</h1>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <section class="main-content">
+        <div class="container">
+            <!-- Botón para agregar nueva factura -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; flex-wrap: wrap; gap: 15px;">
+                <a href="{{ url_for('add_invoice') }}" class="btn-action" style="background: #f39c12;">
+                    + NUEVA FACTURA
+                </a>
+            </div>
+
+            {% if invoices %}
+            <div class="card">
+                <h3 class="card-title">Lista de Facturas</h3>
+                
+                <div class="table-responsive">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>N° Factura</th>
+                                <th>Cliente</th>
+                                <th>Fecha</th>
+                                <th>Vencimiento</th>
+                                <th>Estado</th>
+                                <th class="text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in invoices %}
+                            <tr>
+                                <td>{{ invoice.invoice_number }}</td>
+                                <td>{{ invoice.client_name or 'N/A' }}</td>
+                                <td>{{ invoice.invoice_date }}</td>
+                                <td>{{ invoice.due_date or 'N/A' }}</td>
+                                <td>
+                                    <span class="status-badge status-{{ invoice.status|lower }}">
+                                        {{ invoice.status }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <a href="{{ url_for('view_invoice', invoice_id=invoice.id) }}" class="btn-icon" title="Ver Factura">
+                                        <i class="icon-view">📄</i>
+                                    </a>
+                                    <a href="#" class="btn-icon" title="Descargar PDF">
+                                        <i class="icon-download">📥</i>
+                                    </a>
+                                    <a href="{{ url_for('delete_invoice', invoice_id=invoice.id) }}" class="btn-icon" title="Eliminar" onclick="return confirm('¿Estás seguro de que quieres eliminar esta factura?')">
+                                        <i class="icon-delete">🗑️</i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <h3>No hay facturas registradas</h3>
+                <p>Comienza creando tu primera factura</p>
+                <a href="{{ url_for('add_invoice') }}" class="btn-action" style="background: #f39c12;">
+                    CREAR PRIMERA FACTURA
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+{% endblock %}

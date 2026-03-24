@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="hero-title">Mi Perfil</h1>
+        </div>
+    </section>
+
+    <!-- Profile Content -->
+    <section class="main-content">
+        <div class="container">
+            <div style="max-width: 500px; margin: 0 auto;">
+                <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <h3 style="color: #4DA6FF; margin-bottom: 20px; text-align: center;">Información Personal</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <strong>Nombre:</strong> {{ user.name }}
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <strong>Email:</strong> {{ user.email }}
+                    </div>
+                    {% if user.company %}
+                    <div style="margin-bottom: 15px;">
+                        <strong>Empresa:</strong> {{ user.company }}
+                    </div>
+                    {% endif %}
+                    <div style="margin-bottom: 15px;">
+                        <strong>Cuenta creada:</strong> {{ user.created_at_formatted }}
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                        <a href="{{ url_for('dashboard') }}" style="background: #4DA6FF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Volver al Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock %}
