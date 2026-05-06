@@ -1,1103 +1,736 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
 import sqlite3
 import hashlib
-import re
 from datetime import datetime
-import random
-import string
+import re
+import json
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+import io
 
+# Crear la aplicación Flask
 app = Flask(__name__)
-app.secret_key = 'helptech_f_secret_key_2025'
+app.secret_key = 'tu_clave_secreta_aqui_12345'
 
-# Función para conectar a la base de datos
-def get_db_connection():
-    conn = sqlite3.connect('helptech_f.db')
-    conn.row_factory = sqlite3.Row
-    return conn
+IVA = 0.19  # 19% de IVA
 
-# Función para crear TODAS las tablas
-def init_db():
-    """Crear todas las tablas necesarias"""
-    conn = get_db_connection()
-    
-    # Tabla de usuarios
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            company TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE
-        )
-    ''')
-    
-    # Tabla de sesiones de usuarios
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS user_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            login_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            ip_address TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-    
-    # Tabla de clientes
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS clients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            address TEXT,
-            phone TEXT,
-            email TEXT,
-            client_type TEXT NOT NULL,
-            created_by INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE,
-            FOREIGN KEY (created_by) REFERENCES users (id)
-        )
-    ''')
-    
-    # Tabla de productos
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code TEXT NOT NULL,
-            name TEXT NOT NULL,
-            description TEXT,
-            category TEXT,
-            unit_price REAL NOT NULL DEFAULT 0,
-            stock INTEGER NOT NULL DEFAULT 0,
-            tax_rate REAL NOT NULL DEFAULT 0,
-            created_by INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE,
-            FOREIGN KEY (created_by) REFERENCES users (id)
-        )
-    ''')
-    
-    # Tabla de impuestos
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS taxes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            tax_rate REAL NOT NULL DEFAULT 0,
-            description TEXT,
-            tax_type TEXT NOT NULL DEFAULT 'IVA',
-            created_by INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE,
-            FOREIGN KEY (created_by) REFERENCES users (id)
-        )
-    ''')
-    
-    # Tabla de facturas
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS invoices (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            client_id INTEGER NOT NULL,
-            invoice_number TEXT UNIQUE NOT NULL,
-            invoice_date DATE NOT NULL,
-            due_date DATE,
-            status TEXT NOT NULL DEFAULT 'Pendiente',
-            created_by INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            is_active BOOLEAN DEFAULT TRUE,
-            FOREIGN KEY (client_id) REFERENCES clients (id),
-            FOREIGN KEY (created_by) REFERENCES users (id)
-        )
-    ''')
-    
-    # Tabla de items de factura
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS invoice_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            invoice_id INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
-            quantity INTEGER NOT NULL DEFAULT 1,
-            unit_price REAL NOT NULL DEFAULT 0,
-            tax_rate REAL NOT NULL DEFAULT 0,
-            subtotal REAL NOT NULL DEFAULT 0,
-            tax_amount REAL NOT NULL DEFAULT 0,
-            total REAL NOT NULL DEFAULT 0,
-            FOREIGN KEY (invoice_id) REFERENCES invoices (id),
-            FOREIGN KEY (product_id) REFERENCES products (id)
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    print("✅ Todas las tablas de la base de datos creadas/verificadas correctamente")
-
-# Función para hash de contraseñas
 def hash_password(password):
+    """Encriptar contraseña de manera simple"""
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Función para verificar contraseña
-def check_password(password_hash, password):
-    return password_hash == hashlib.sha256(password.encode()).hexdigest()
+def verificar_email(email):
+    """Verificar formato de email"""
+    patron = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(patron, email)
 
-# Función para formatear fecha
-def format_date(date_string):
-    """Convierte string de fecha a formato legible"""
-    try:
-        if isinstance(date_string, datetime):
-            return date_string.strftime('%d/%m/%Y')
-        
-        if isinstance(date_string, str):
-            if ' ' in date_string:
-                date_part = date_string.split(' ')[0]
-                return datetime.strptime(date_part, '%Y-%m-%d').strftime('%d/%m/%Y')
-            else:
-                return datetime.strptime(date_string, '%Y-%m-%d').strftime('%d/%m/%Y')
-    except:
-        return date_string
+def conectar_db():
+    """Conectar a la base de datos"""
+    return sqlite3.connect('helpTech.db')
 
-# Validaciones
-def validate_email(email):
-    """Valida formato de email"""
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
-
-def validate_password_strength(password):
-    """Valida fortaleza de la contraseña"""
-    if len(password) < 6:
-        return False, "La contraseña debe tener al menos 6 caracteres"
+def generar_numero_factura():
+    """Generar número de factura automático"""
+    año = datetime.now().strftime("%Y")
+    mes = datetime.now().strftime("%m")
     
-    if not any(char.isdigit() for char in password):
-        return False, "La contraseña debe contener al menos un número"
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM facturas")
+    count = cursor.fetchone()[0] + 1
+    conn.close()
     
-    if not any(char.isalpha() for char in password):
-        return False, "La contraseña debe contener al menos una letra"
-    
-    return True, "Contraseña válida"
+    return f"FAC-{año}{mes}-{count:04d}"
 
-def validate_name(name):
-    """Valida nombre"""
-    if len(name.strip()) < 2:
-        return False, "El nombre debe tener al menos 2 caracteres"
-    
-    if not all(char.isalpha() or char.isspace() for char in name):
-        return False, "El nombre solo puede contener letras y espacios"
-    
-    return True, "Nombre válido"
-
-# Middleware para verificar autenticación
-def login_required(f):
-    from functools import wraps
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            flash('Debes iniciar sesión para acceder a esta página', 'error')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Función para generar número de factura
-def generate_invoice_number():
-    year = datetime.now().year
-    random_str = ''.join(random.choices(string.digits, k=6))
-    return f'FACT-{year}-{random_str}'
-
-# ============================================
-# RUTAS PRINCIPALES (mantener igual)
-# ============================================
-
+# ============ RUTAS PRINCIPALES ============
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# ============ USUARIOS ============
+@app.route('/registro', methods=['GET', 'POST'])
+def registro():
+    error = None
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        email = request.form['email']
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        
+        if not nombre or not email or not password:
+            error = "Todos los campos son obligatorios"
+        elif not verificar_email(email):
+            error = "El formato del email no es válido"
+        elif len(password) < 6:
+            error = "La contraseña debe tener al menos 6 caracteres"
+        elif password != confirm_password:
+            error = "Las contraseñas no coinciden"
+        else:
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                
+                cursor.execute("SELECT id FROM usuarios WHERE email = ?", (email,))
+                if cursor.fetchone():
+                    error = "Este email ya está registrado"
+                else:
+                    password_hash = hash_password(password)
+                    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    cursor.execute('''
+                        INSERT INTO usuarios (nombre, email, password, fecha_registro)
+                        VALUES (?, ?, ?, ?)
+                    ''', (nombre, email, password_hash, fecha))
+                    
+                    conn.commit()
+                    conn.close()
+                    return redirect(url_for('login', mensaje="Registro exitoso. Ahora inicia sesión."))
+                    
+            except Exception as e:
+                error = f"Error al registrar: {str(e)}"
+            finally:
+                conn.close()
+    
+    return render_template('registro.html', error=error)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'user_id' in session:
-        return redirect(url_for('dashboard'))
+    error = None
+    mensaje = request.args.get('mensaje')
     
     if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
+        email = request.form['email']
+        password = request.form['password']
         
-        errors = []
-        
-        if not email:
-            errors.append('El email es requerido')
-        elif not validate_email(email):
-            errors.append('El formato del email no es válido')
-        
-        if not password:
-            errors.append('La contraseña es requerida')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('login.html', email=email)
-        
-        conn = get_db_connection()
-        user = conn.execute(
-            'SELECT * FROM users WHERE email = ? AND is_active = TRUE',
-            (email,)
-        ).fetchone()
-        conn.close()
-        
-        if user and check_password(user['password_hash'], password):
-            session['user_id'] = user['id']
-            session['user_name'] = user['name']
-            session['user_email'] = user['email']
-            
-            conn = get_db_connection()
-            conn.execute(
-                'INSERT INTO user_sessions (user_id, ip_address) VALUES (?, ?)',
-                (user['id'], request.remote_addr)
-            )
-            conn.commit()
-            conn.close()
-            
-            flash(f'¡Bienvenido de nuevo, {user["name"]}!', 'success')
-            return redirect(url_for('dashboard'))
+        if not email or not password:
+            error = "Todos los campos son obligatorios"
         else:
-            flash('Email o contraseña incorrectos', 'error')
-            return render_template('login.html', email=email)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                
+                password_hash = hash_password(password)
+                cursor.execute('''
+                    SELECT id, nombre, email FROM usuarios 
+                    WHERE email = ? AND password = ?
+                ''', (email, password_hash))
+                
+                usuario = cursor.fetchone()
+                conn.close()
+                
+                if usuario:
+                    session['usuario_id'] = usuario[0]
+                    session['usuario_nombre'] = usuario[1]
+                    session['usuario_email'] = usuario[2]
+                    return redirect(url_for('dashboard'))
+                else:
+                    error = "Email o contraseña incorrectos"
+                    
+            except Exception as e:
+                error = f"Error al iniciar sesión: {str(e)}"
     
-    return render_template('login.html')
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        company = request.form.get('company', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-        
-        errors = []
-        
-        name_valid, name_error = validate_name(name)
-        if not name_valid:
-            errors.append(name_error)
-        
-        if not email:
-            errors.append('El email es requerido')
-        elif not validate_email(email):
-            errors.append('El formato del email no es válido')
-        
-        if not password:
-            errors.append('La contraseña es requerida')
-        else:
-            password_valid, password_error = validate_password_strength(password)
-            if not password_valid:
-                errors.append(password_error)
-        
-        if password != confirm_password:
-            errors.append('Las contraseñas no coinciden')
-        
-        if not errors:
-            conn = get_db_connection()
-            existing_user = conn.execute(
-                'SELECT id FROM users WHERE email = ?', (email,)
-            ).fetchone()
-            conn.close()
-            
-            if existing_user:
-                errors.append('Este email ya está registrado')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('register.html', name=name, email=email, company=company)
-        
-        try:
-            password_hash = hash_password(password)
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                'INSERT INTO users (name, email, company, password_hash) VALUES (?, ?, ?, ?)',
-                (name, email, company, password_hash)
-            )
-            user_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
-            
-            flash('¡Registro exitoso! Ahora puedes iniciar sesión.', 'success')
-            return redirect(url_for('login'))
-            
-        except Exception as e:
-            flash('Error en el registro. Por favor, inténtalo de nuevo.', 'error')
-            return render_template('register.html', name=name, email=email, company=company)
-    
-    return render_template('register.html')
+    return render_template('login.html', error=error, mensaje=mensaje)
 
 @app.route('/dashboard')
-@login_required
 def dashboard():
-    conn = get_db_connection()
-    user = conn.execute(
-        'SELECT * FROM users WHERE id = ?', (session['user_id'],)
-    ).fetchone()
-    conn.close()
-    
-    if not user:
-        session.clear()
-        flash('Usuario no encontrado', 'error')
+    if 'usuario_id' not in session:
         return redirect(url_for('login'))
     
-    user_dict = dict(user)
-    user_dict['created_at_formatted'] = format_date(user['created_at'])
+    conn = conectar_db()
+    cursor = conn.cursor()
     
-    return render_template('dashboard.html', user=user_dict)
-
-@app.route('/profile')
-@login_required
-def profile():
-    conn = get_db_connection()
-    user = conn.execute(
-        'SELECT * FROM users WHERE id = ?', (session['user_id'],)
-    ).fetchone()
-    conn.close()
-    
-    user_dict = dict(user)
-    user_dict['created_at_formatted'] = format_date(user['created_at'])
-    
-    return render_template('profile.html', user=user_dict)
-
-# ============================================
-# RUTAS DE GESTIÓN DE CLIENTES (mantener igual)
-# ============================================
-
-@app.route('/client-management')
-@login_required
-def client_management():
-    conn = get_db_connection()
-    clients = conn.execute(
-        'SELECT * FROM clients WHERE created_by = ? AND is_active = TRUE ORDER BY name',
-        (session['user_id'],)
-    ).fetchall()
-    conn.close()
-    
-    return render_template('client_management.html', clients=clients)
-
-@app.route('/add-client', methods=['GET', 'POST'])
-@login_required
-def add_client():
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        address = request.form.get('address', '').strip()
-        phone = request.form.get('phone', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        client_type = request.form.get('client_type', '').strip()
+    try:
+        # Contar clientes
+        cursor.execute("SELECT COUNT(*) FROM clientes WHERE usuario_id = ?", (session['usuario_id'],))
+        total_clientes = cursor.fetchone()[0]
         
-        errors = []
+        # Contar productos
+        cursor.execute("SELECT COUNT(*) FROM productos WHERE usuario_id = ?", (session['usuario_id'],))
+        total_productos = cursor.fetchone()[0]
         
-        if not name:
-            errors.append('El nombre del cliente es requerido')
+        # Contar facturas
+        cursor.execute("SELECT COUNT(*) FROM facturas WHERE usuario_id = ?", (session['usuario_id'],))
+        total_facturas = cursor.fetchone()[0]
         
-        if not client_type:
-            errors.append('El tipo de cliente es requerido')
-        
-        if email and not validate_email(email):
-            errors.append('El formato del email no es válido')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('add_client.html', 
-                                 name=name, address=address, phone=phone, 
-                                 email=email, client_type=client_type)
-        
+        # Calcular ingresos totales
         try:
-            conn = get_db_connection()
-            conn.execute(
-                '''INSERT INTO clients 
-                (name, address, phone, email, client_type, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?)''',
-                (name, address, phone, email, client_type, session['user_id'])
-            )
-            conn.commit()
-            conn.close()
+            cursor.execute("SELECT SUM(total) FROM facturas WHERE usuario_id = ?", (session['usuario_id'],))
+            resultado = cursor.fetchone()[0]
+            total_ingresos = resultado if resultado is not None else 0
+        except:
+            total_ingresos = 0
             
-            flash('Cliente agregado exitosamente', 'success')
-            return redirect(url_for('client_management'))
-            
-        except Exception as e:
-            flash('Error al agregar el cliente', 'error')
-            return render_template('add_client.html', 
-                                 name=name, address=address, phone=phone, 
-                                 email=email, client_type=client_type)
-    
-    return render_template('add_client.html')
-
-@app.route('/edit-client/<int:client_id>', methods=['GET', 'POST'])
-@login_required
-def edit_client(client_id):
-    conn = get_db_connection()
-    client = conn.execute(
-        'SELECT * FROM clients WHERE id = ? AND created_by = ?',
-        (client_id, session['user_id'])
-    ).fetchone()
-    conn.close()
-    
-    if not client:
-        flash('Cliente no encontrado', 'error')
-        return redirect(url_for('client_management'))
-    
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        address = request.form.get('address', '').strip()
-        phone = request.form.get('phone', '').strip()
-        email = request.form.get('email', '').strip().lower()
-        client_type = request.form.get('client_type', '').strip()
-        
-        errors = []
-        
-        if not name:
-            errors.append('El nombre del cliente es requerido')
-        
-        if not client_type:
-            errors.append('El tipo de cliente es requerido')
-        
-        if email and not validate_email(email):
-            errors.append('El formato del email no es válido')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('edit_client.html', client=client)
-        
-        try:
-            conn = get_db_connection()
-            conn.execute(
-                '''UPDATE clients 
-                SET name = ?, address = ?, phone = ?, email = ?, client_type = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE id = ? AND created_by = ?''',
-                (name, address, phone, email, client_type, client_id, session['user_id'])
-            )
-            conn.commit()
-            conn.close()
-            
-            flash('Cliente actualizado exitosamente', 'success')
-            return redirect(url_for('client_management'))
-            
-        except Exception as e:
-            flash('Error al actualizar el cliente', 'error')
-            return render_template('edit_client.html', client=client)
-    
-    return render_template('edit_client.html', client=client)
-
-@app.route('/delete-client/<int:client_id>')
-@login_required
-def delete_client(client_id):
-    conn = get_db_connection()
-    client = conn.execute(
-        'SELECT * FROM clients WHERE id = ? AND created_by = ?',
-        (client_id, session['user_id'])
-    ).fetchone()
-    
-    if not client:
+    except Exception as e:
+        print(f"Error en dashboard: {e}")
+        total_clientes = 0
+        total_productos = 0
+        total_facturas = 0
+        total_ingresos = 0
+    finally:
         conn.close()
-        flash('Cliente no encontrado', 'error')
-        return redirect(url_for('client_management'))
     
-    conn.execute(
-        'UPDATE clients SET is_active = FALSE WHERE id = ?',
-        (client_id,)
-    )
-    conn.commit()
-    conn.close()
+    usuario = {
+        'nombre': session['usuario_nombre'],
+        'email': session['usuario_email']
+    }
     
-    flash('Cliente eliminado exitosamente', 'success')
-    return redirect(url_for('client_management'))
-
-@app.route('/view-client/<int:client_id>')
-@login_required
-def view_client(client_id):
-    conn = get_db_connection()
-    client = conn.execute(
-        'SELECT * FROM clients WHERE id = ? AND created_by = ? AND is_active = TRUE',
-        (client_id, session['user_id'])
-    ).fetchone()
-    conn.close()
-    
-    if not client:
-        flash('Cliente no encontrado', 'error')
-        return redirect(url_for('client_management'))
-    
-    return render_template('view_client.html', client=client)
-
-# ============================================
-# RUTAS DE GESTIÓN DE PRODUCTOS (NUEVAS)
-# ============================================
-
-@app.route('/product-management')
-@login_required
-def product_management():
-    """Vista principal de gestión de productos"""
-    conn = get_db_connection()
-    products = conn.execute(
-        '''SELECT * FROM products 
-           WHERE created_by = ? AND is_active = TRUE 
-           ORDER BY name''',
-        (session['user_id'],)
-    ).fetchall()
-    conn.close()
-    
-    return render_template('product_management.html', products=products)
-
-@app.route('/add-product', methods=['GET', 'POST'])
-@login_required
-def add_product():
-    """Agregar nuevo producto"""
-    if request.method == 'POST':
-        code = request.form.get('code', '').strip()
-        name = request.form.get('name', '').strip()
-        description = request.form.get('description', '').strip()
-        category = request.form.get('category', '').strip()
-        unit_price = request.form.get('unit_price', '0').strip()
-        stock = request.form.get('stock', '0').strip()
-        tax_rate = request.form.get('tax_rate', '0').strip()
-        
-        # Validaciones
-        errors = []
-        
-        if not code:
-            errors.append('El código del producto es requerido')
-        
-        if not name:
-            errors.append('El nombre del producto es requerido')
-        
-        # Validar números
-        try:
-            unit_price = float(unit_price)
-            if unit_price < 0:
-                errors.append('El precio unitario no puede ser negativo')
-        except:
-            errors.append('El precio unitario debe ser un número válido')
-        
-        try:
-            stock = int(stock)
-            if stock < 0:
-                errors.append('El stock no puede ser negativo')
-        except:
-            errors.append('El stock debe ser un número entero válido')
-        
-        try:
-            tax_rate = float(tax_rate)
-            if tax_rate < 0 or tax_rate > 100:
-                errors.append('La tasa de impuesto debe estar entre 0 y 100')
-        except:
-            errors.append('La tasa de impuesto debe ser un número válido')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('add_product.html', 
-                                 code=code, name=name, description=description,
-                                 category=category, unit_price=unit_price,
-                                 stock=stock, tax_rate=tax_rate)
-        
-        try:
-            conn = get_db_connection()
-            conn.execute(
-                '''INSERT INTO products 
-                (code, name, description, category, unit_price, stock, tax_rate, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                (code, name, description, category, unit_price, stock, tax_rate, session['user_id'])
-            )
-            conn.commit()
-            conn.close()
-            
-            flash('Producto agregado exitosamente', 'success')
-            return redirect(url_for('product_management'))
-            
-        except Exception as e:
-            flash('Error al agregar el producto', 'error')
-            return render_template('add_product.html', 
-                                 code=code, name=name, description=description,
-                                 category=category, unit_price=unit_price,
-                                 stock=stock, tax_rate=tax_rate)
-    
-    return render_template('add_product.html')
-
-@app.route('/edit-product/<int:product_id>', methods=['GET', 'POST'])
-@login_required
-def edit_product(product_id):
-    """Editar producto existente"""
-    conn = get_db_connection()
-    product = conn.execute(
-        'SELECT * FROM products WHERE id = ? AND created_by = ?',
-        (product_id, session['user_id'])
-    ).fetchone()
-    conn.close()
-    
-    if not product:
-        flash('Producto no encontrado', 'error')
-        return redirect(url_for('product_management'))
-    
-    if request.method == 'POST':
-        code = request.form.get('code', '').strip()
-        name = request.form.get('name', '').strip()
-        description = request.form.get('description', '').strip()
-        category = request.form.get('category', '').strip()
-        unit_price = request.form.get('unit_price', '0').strip()
-        stock = request.form.get('stock', '0').strip()
-        tax_rate = request.form.get('tax_rate', '0').strip()
-        
-        # Validaciones
-        errors = []
-        
-        if not code:
-            errors.append('El código del producto es requerido')
-        
-        if not name:
-            errors.append('El nombre del producto es requerido')
-        
-        # Validar números
-        try:
-            unit_price = float(unit_price)
-            if unit_price < 0:
-                errors.append('El precio unitario no puede ser negativo')
-        except:
-            errors.append('El precio unitario debe ser un número válido')
-        
-        try:
-            stock = int(stock)
-            if stock < 0:
-                errors.append('El stock no puede ser negativo')
-        except:
-            errors.append('El stock debe ser un número entero válido')
-        
-        try:
-            tax_rate = float(tax_rate)
-            if tax_rate < 0 or tax_rate > 100:
-                errors.append('La tasa de impuesto debe estar entre 0 y 100')
-        except:
-            errors.append('La tasa de impuesto debe ser un número válido')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('edit_product.html', product=product)
-        
-        try:
-            conn = get_db_connection()
-            conn.execute(
-                '''UPDATE products 
-                SET code = ?, name = ?, description = ?, category = ?, 
-                    unit_price = ?, stock = ?, tax_rate = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE id = ? AND created_by = ?''',
-                (code, name, description, category, unit_price, stock, tax_rate, 
-                 product_id, session['user_id'])
-            )
-            conn.commit()
-            conn.close()
-            
-            flash('Producto actualizado exitosamente', 'success')
-            return redirect(url_for('product_management'))
-            
-        except Exception as e:
-            flash('Error al actualizar el producto', 'error')
-            return render_template('edit_product.html', product=product)
-    
-    return render_template('edit_product.html', product=product)
-
-@app.route('/delete-product/<int:product_id>')
-@login_required
-def delete_product(product_id):
-    """Eliminar producto (soft delete)"""
-    conn = get_db_connection()
-    product = conn.execute(
-        'SELECT * FROM products WHERE id = ? AND created_by = ?',
-        (product_id, session['user_id'])
-    ).fetchone()
-    
-    if not product:
-        conn.close()
-        flash('Producto no encontrado', 'error')
-        return redirect(url_for('product_management'))
-    
-    conn.execute(
-        'UPDATE products SET is_active = FALSE WHERE id = ?',
-        (product_id,)
-    )
-    conn.commit()
-    conn.close()
-    
-    flash('Producto eliminado exitosamente', 'success')
-    return redirect(url_for('product_management'))
-
-@app.route('/view-product/<int:product_id>')
-@login_required
-def view_product(product_id):
-    """Ver detalles del producto"""
-    conn = get_db_connection()
-    product = conn.execute(
-        '''SELECT * FROM products 
-           WHERE id = ? AND created_by = ? AND is_active = TRUE''',
-        (product_id, session['user_id'])
-    ).fetchone()
-    conn.close()
-    
-    if not product:
-        flash('Producto no encontrado', 'error')
-        return redirect(url_for('product_management'))
-    
-    return render_template('view_product.html', product=product)
-
-# ============================================
-# RUTAS DE GESTIÓN DE FACTURAS (NUEVAS)
-# ============================================
-
-@app.route('/invoice-management')
-@login_required
-def invoice_management():
-    """Vista principal de gestión de facturas"""
-    conn = get_db_connection()
-    invoices = conn.execute(
-        '''SELECT i.*, c.name as client_name 
-           FROM invoices i
-           LEFT JOIN clients c ON i.client_id = c.id
-           WHERE i.created_by = ? AND i.is_active = TRUE 
-           ORDER BY i.invoice_date DESC''',
-        (session['user_id'],)
-    ).fetchall()
-    
-    clients = conn.execute(
-        'SELECT id, name FROM clients WHERE created_by = ? AND is_active = TRUE',
-        (session['user_id'],)
-    ).fetchall()
-    
-    conn.close()
-    
-    return render_template('invoice_management.html', invoices=invoices, clients=clients)
-
-@app.route('/add-invoice', methods=['GET', 'POST'])
-@login_required
-def add_invoice():
-    """Agregar nueva factura"""
-    conn = get_db_connection()
-    clients = conn.execute(
-        'SELECT id, name FROM clients WHERE created_by = ? AND is_active = TRUE',
-        (session['user_id'],)
-    ).fetchall()
-    
-    products = conn.execute(
-        'SELECT id, name, unit_price, tax_rate FROM products WHERE created_by = ? AND is_active = TRUE',
-        (session['user_id'],)
-    ).fetchall()
-    conn.close()
-    
-    if request.method == 'POST':
-        client_id = request.form.get('client_id')
-        invoice_date = request.form.get('invoice_date')
-        due_date = request.form.get('due_date')
-        status = request.form.get('status', 'Pendiente')
-        
-        # Validaciones básicas
-        if not client_id:
-            flash('Debe seleccionar un cliente', 'error')
-            return render_template('add_invoice.html', clients=clients, products=products)
-        
-        try:
-            conn = get_db_connection()
-            # Insertar factura
-            cursor = conn.cursor()
-            cursor.execute(
-                '''INSERT INTO invoices 
-                (client_id, invoice_number, invoice_date, due_date, status, created_by) 
-                VALUES (?, ?, ?, ?, ?, ?)''',
-                (client_id, generate_invoice_number(), invoice_date, due_date, status, session['user_id'])
-            )
-            
-            invoice_id = cursor.lastrowid
-            
-            # Insertar items de la factura
-            product_ids = request.form.getlist('product_id[]')
-            quantities = request.form.getlist('quantity[]')
-            
-            for product_id, quantity in zip(product_ids, quantities):
-                if product_id and quantity:
-                    # Obtener información del producto
-                    product = conn.execute(
-                        'SELECT unit_price, tax_rate FROM products WHERE id = ?',
-                        (product_id,)
-                    ).fetchone()
-                    
-                    if product:
-                        unit_price = product['unit_price']
-                        tax_rate = product['tax_rate']
-                        subtotal = float(unit_price) * float(quantity)
-                        tax_amount = subtotal * (float(tax_rate) / 100)
-                        total = subtotal + tax_amount
-                        
-                        conn.execute(
-                            '''INSERT INTO invoice_items 
-                            (invoice_id, product_id, quantity, unit_price, tax_rate, subtotal, tax_amount, total) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                            (invoice_id, product_id, quantity, unit_price, tax_rate, subtotal, tax_amount, total)
-                        )
-            
-            conn.commit()
-            conn.close()
-            
-            flash('Factura creada exitosamente', 'success')
-            return redirect(url_for('invoice_management'))
-            
-        except Exception as e:
-            flash('Error al crear la factura', 'error')
-            return render_template('add_invoice.html', clients=clients, products=products)
-    
-    return render_template('add_invoice.html', clients=clients, products=products)
-
-@app.route('/view-invoice/<int:invoice_id>')
-@login_required
-def view_invoice(invoice_id):
-    """Ver detalles de la factura"""
-    conn = get_db_connection()
-    
-    invoice = conn.execute(
-        '''SELECT i.*, c.name as client_name, c.address, c.phone, c.email
-           FROM invoices i
-           LEFT JOIN clients c ON i.client_id = c.id
-           WHERE i.id = ? AND i.created_by = ?''',
-        (invoice_id, session['user_id'])
-    ).fetchone()
-    
-    if not invoice:
-        conn.close()
-        flash('Factura no encontrada', 'error')
-        return redirect(url_for('invoice_management'))
-    
-    items = conn.execute(
-        '''SELECT ii.*, p.name as product_name, p.code as product_code
-           FROM invoice_items ii
-           LEFT JOIN products p ON ii.product_id = p.id
-           WHERE ii.invoice_id = ?''',
-        (invoice_id,)
-    ).fetchall()
-    
-    # Calcular totales
-    totals = conn.execute(
-        '''SELECT SUM(subtotal) as subtotal, SUM(tax_amount) as tax, SUM(total) as total
-           FROM invoice_items WHERE invoice_id = ?''',
-        (invoice_id,)
-    ).fetchone()
-    
-    conn.close()
-    
-    return render_template('view_invoice.html', invoice=invoice, items=items, totals=totals)
-
-@app.route('/delete-invoice/<int:invoice_id>')
-@login_required
-def delete_invoice(invoice_id):
-    """Eliminar factura (soft delete)"""
-    conn = get_db_connection()
-    invoice = conn.execute(
-        'SELECT * FROM invoices WHERE id = ? AND created_by = ?',
-        (invoice_id, session['user_id'])
-    ).fetchone()
-    
-    if not invoice:
-        conn.close()
-        flash('Factura no encontrada', 'error')
-        return redirect(url_for('invoice_management'))
-    
-    # Primero eliminar los items de la factura
-    conn.execute('DELETE FROM invoice_items WHERE invoice_id = ?', (invoice_id,))
-    
-    # Luego eliminar la factura
-    conn.execute('UPDATE invoices SET is_active = FALSE WHERE id = ?', (invoice_id,))
-    
-    conn.commit()
-    conn.close()
-    
-    flash('Factura eliminada exitosamente', 'success')
-    return redirect(url_for('invoice_management'))
-
-# ============================================
-# RUTAS DE GESTIÓN DE IMPUESTOS (NUEVAS)
-# ============================================
-
-@app.route('/tax-management')
-@login_required
-def tax_management():
-    """Vista principal de gestión de impuestos"""
-    conn = get_db_connection()
-    taxes = conn.execute(
-        '''SELECT * FROM taxes 
-           WHERE created_by = ? AND is_active = TRUE 
-           ORDER BY name''',
-        (session['user_id'],)
-    ).fetchall()
-    conn.close()
-    
-    return render_template('tax_management.html', taxes=taxes)
-
-@app.route('/add-tax', methods=['GET', 'POST'])
-@login_required
-def add_tax():
-    """Agregar nuevo impuesto"""
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        tax_rate = request.form.get('tax_rate', '0').strip()
-        description = request.form.get('description', '').strip()
-        tax_type = request.form.get('tax_type', 'IVA')
-        
-        # Validaciones
-        errors = []
-        
-        if not name:
-            errors.append('El nombre del impuesto es requerido')
-        
-        try:
-            tax_rate = float(tax_rate)
-            if tax_rate < 0 or tax_rate > 100:
-                errors.append('La tasa de impuesto debe estar entre 0 y 100')
-        except:
-            errors.append('La tasa de impuesto debe ser un número válido')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('add_tax.html', 
-                                 name=name, tax_rate=tax_rate, 
-                                 description=description, tax_type=tax_type)
-        
-        try:
-            conn = get_db_connection()
-            conn.execute(
-                '''INSERT INTO taxes 
-                (name, tax_rate, description, tax_type, created_by) 
-                VALUES (?, ?, ?, ?, ?)''',
-                (name, tax_rate, description, tax_type, session['user_id'])
-            )
-            conn.commit()
-            conn.close()
-            
-            flash('Impuesto agregado exitosamente', 'success')
-            return redirect(url_for('tax_management'))
-            
-        except Exception as e:
-            flash('Error al agregar el impuesto', 'error')
-            return render_template('add_tax.html', 
-                                 name=name, tax_rate=tax_rate, 
-                                 description=description, tax_type=tax_type)
-    
-    return render_template('add_tax.html')
-
-@app.route('/edit-tax/<int:tax_id>', methods=['GET', 'POST'])
-@login_required
-def edit_tax(tax_id):
-    """Editar impuesto existente"""
-    conn = get_db_connection()
-    tax = conn.execute(
-        'SELECT * FROM taxes WHERE id = ? AND created_by = ?',
-        (tax_id, session['user_id'])
-    ).fetchone()
-    conn.close()
-    
-    if not tax:
-        flash('Impuesto no encontrado', 'error')
-        return redirect(url_for('tax_management'))
-    
-    if request.method == 'POST':
-        name = request.form.get('name', '').strip()
-        tax_rate = request.form.get('tax_rate', '0').strip()
-        description = request.form.get('description', '').strip()
-        tax_type = request.form.get('tax_type', 'IVA')
-        
-        # Validaciones
-        errors = []
-        
-        if not name:
-            errors.append('El nombre del impuesto es requerido')
-        
-        try:
-            tax_rate = float(tax_rate)
-            if tax_rate < 0 or tax_rate > 100:
-                errors.append('La tasa de impuesto debe estar entre 0 y 100')
-        except:
-            errors.append('La tasa de impuesto debe ser un número válido')
-        
-        if errors:
-            for error in errors:
-                flash(error, 'error')
-            return render_template('edit_tax.html', tax=tax)
-        
-        try:
-            conn = get_db_connection()
-            conn.execute(
-                '''UPDATE taxes 
-                SET name = ?, tax_rate = ?, description = ?, tax_type = ?, updated_at = CURRENT_TIMESTAMP 
-                WHERE id = ? AND created_by = ?''',
-                (name, tax_rate, description, tax_type, tax_id, session['user_id'])
-            )
-            conn.commit()
-            conn.close()
-            
-            flash('Impuesto actualizado exitosamente', 'success')
-            return redirect(url_for('tax_management'))
-            
-        except Exception as e:
-            flash('Error al actualizar el impuesto', 'error')
-            return render_template('edit_tax.html', tax=tax)
-    
-    return render_template('edit_tax.html', tax=tax)
-
-@app.route('/delete-tax/<int:tax_id>')
-@login_required
-def delete_tax(tax_id):
-    """Eliminar impuesto (soft delete)"""
-    conn = get_db_connection()
-    tax = conn.execute(
-        'SELECT * FROM taxes WHERE id = ? AND created_by = ?',
-        (tax_id, session['user_id'])
-    ).fetchone()
-    
-    if not tax:
-        conn.close()
-        flash('Impuesto no encontrado', 'error')
-        return redirect(url_for('tax_management'))
-    
-    conn.execute(
-        'UPDATE taxes SET is_active = FALSE WHERE id = ?',
-        (tax_id,)
-    )
-    conn.commit()
-    conn.close()
-    
-    flash('Impuesto eliminado exitosamente', 'success')
-    return redirect(url_for('tax_management'))
-
-@app.route('/view-tax/<int:tax_id>')
-@login_required
-def view_tax(tax_id):
-    """Ver detalles del impuesto"""
-    conn = get_db_connection()
-    tax = conn.execute(
-        '''SELECT * FROM taxes 
-           WHERE id = ? AND created_by = ? AND is_active = TRUE''',
-        (tax_id, session['user_id'])
-    ).fetchone()
-    conn.close()
-    
-    if not tax:
-        flash('Impuesto no encontrado', 'error')
-        return redirect(url_for('tax_management'))
-    
-    return render_template('view_tax.html', tax=tax)
+    return render_template('dashboard.html', usuario=usuario, 
+                         total_clientes=total_clientes,
+                         total_productos=total_productos,
+                         total_facturas=total_facturas,
+                         total_ingresos=total_ingresos)
 
 @app.route('/logout')
 def logout():
     session.clear()
-    flash('Has cerrado sesión correctamente', 'info')
     return redirect(url_for('index'))
 
-# Inicializar la base de datos al iniciar la aplicación
-with app.app_context():
-    init_db()
+# ============ CLIENTES ============
+@app.route('/clientes')
+def listar_clientes():
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, nombre, email, telefono, documento, fecha_registro 
+        FROM clientes 
+        WHERE usuario_id = ? 
+        ORDER BY id DESC
+    ''', (session['usuario_id'],))
+    clientes = cursor.fetchall()
+    conn.close()
+    
+    return render_template('clientes.html', clientes=clientes)
 
+@app.route('/cliente/nuevo', methods=['GET', 'POST'])
+def nuevo_cliente():
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    error = None
+    
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        email = request.form['email']
+        telefono = request.form['telefono']
+        direccion = request.form['direccion']
+        documento = request.form['documento']
+        
+        if not nombre:
+            error = "El nombre del cliente es obligatorio"
+        else:
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                cursor.execute('''
+                    INSERT INTO clientes (usuario_id, nombre, email, telefono, direccion, documento, fecha_registro)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (session['usuario_id'], nombre, email, telefono, direccion, documento, fecha))
+                
+                conn.commit()
+                conn.close()
+                return redirect(url_for('listar_clientes'))
+                
+            except Exception as e:
+                error = f"Error al crear cliente: {str(e)}"
+    
+    return render_template('cliente_form.html', error=error, titulo="Nuevo Cliente")
+
+@app.route('/cliente/editar/<int:id>', methods=['GET', 'POST'])
+def editar_cliente(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        email = request.form['email']
+        telefono = request.form['telefono']
+        direccion = request.form['direccion']
+        documento = request.form['documento']
+        
+        try:
+            cursor.execute('''
+                UPDATE clientes 
+                SET nombre = ?, email = ?, telefono = ?, direccion = ?, documento = ?
+                WHERE id = ? AND usuario_id = ?
+            ''', (nombre, email, telefono, direccion, documento, id, session['usuario_id']))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('listar_clientes'))
+        except Exception as e:
+            conn.close()
+            return f"Error: {str(e)}"
+    
+    cursor.execute('SELECT id, nombre, email, telefono, direccion, documento FROM clientes WHERE id = ? AND usuario_id = ?', 
+                  (id, session['usuario_id']))
+    cliente = cursor.fetchone()
+    conn.close()
+    
+    if not cliente:
+        return redirect(url_for('listar_clientes'))
+    
+    return render_template('cliente_form.html', cliente=cliente, titulo="Editar Cliente")
+
+@app.route('/cliente/eliminar/<int:id>')
+def eliminar_cliente(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM clientes WHERE id = ? AND usuario_id = ?', (id, session['usuario_id']))
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('listar_clientes'))
+
+# ============ PRODUCTOS ============
+@app.route('/productos')
+def listar_productos():
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, codigo, nombre, descripcion, precio, stock, categoria 
+        FROM productos 
+        WHERE usuario_id = ? 
+        ORDER BY id DESC
+    ''', (session['usuario_id'],))
+    productos = cursor.fetchall()
+    conn.close()
+    
+    return render_template('productos.html', productos=productos)
+
+@app.route('/producto/nuevo', methods=['GET', 'POST'])
+def nuevo_producto():
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    error = None
+    
+    if request.method == 'POST':
+        codigo = request.form['codigo']
+        nombre = request.form['nombre']
+        descripcion = request.form['descripcion']
+        precio = request.form['precio']
+        stock = request.form['stock']
+        categoria = request.form['categoria']
+        
+        if not nombre or not precio:
+            error = "Nombre y precio son obligatorios"
+        else:
+            try:
+                precio = float(precio)
+                stock = int(stock) if stock else 0
+                
+                conn = conectar_db()
+                cursor = conn.cursor()
+                fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                
+                cursor.execute('''
+                    INSERT INTO productos (usuario_id, codigo, nombre, descripcion, precio, stock, categoria, fecha_registro)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (session['usuario_id'], codigo, nombre, descripcion, precio, stock, categoria, fecha))
+                
+                conn.commit()
+                conn.close()
+                return redirect(url_for('listar_productos'))
+                
+            except Exception as e:
+                error = f"Error al crear producto: {str(e)}"
+    
+    return render_template('producto_form.html', error=error, titulo="Nuevo Producto")
+
+@app.route('/producto/editar/<int:id>', methods=['GET', 'POST'])
+def editar_producto(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    if request.method == 'POST':
+        codigo = request.form['codigo']
+        nombre = request.form['nombre']
+        descripcion = request.form['descripcion']
+        precio = request.form['precio']
+        stock = request.form['stock']
+        categoria = request.form['categoria']
+        
+        try:
+            precio = float(precio)
+            stock = int(stock)
+            
+            cursor.execute('''
+                UPDATE productos 
+                SET codigo = ?, nombre = ?, descripcion = ?, precio = ?, stock = ?, categoria = ?
+                WHERE id = ? AND usuario_id = ?
+            ''', (codigo, nombre, descripcion, precio, stock, categoria, id, session['usuario_id']))
+            conn.commit()
+            conn.close()
+            return redirect(url_for('listar_productos'))
+        except Exception as e:
+            conn.close()
+            return f"Error: {str(e)}"
+    
+    cursor.execute('SELECT id, codigo, nombre, descripcion, precio, stock, categoria FROM productos WHERE id = ? AND usuario_id = ?', 
+                  (id, session['usuario_id']))
+    producto = cursor.fetchone()
+    conn.close()
+    
+    if not producto:
+        return redirect(url_for('listar_productos'))
+    
+    return render_template('producto_form.html', producto=producto, titulo="Editar Producto")
+
+@app.route('/producto/eliminar/<int:id>')
+def eliminar_producto(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM productos WHERE id = ? AND usuario_id = ?', (id, session['usuario_id']))
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('listar_productos'))
+
+# ============ FACTURAS ============
+@app.route('/facturas')
+def listar_facturas():
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT f.id, f.numero_factura, c.nombre, f.fecha, f.subtotal, f.iva, f.total 
+        FROM facturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.usuario_id = ?
+        ORDER BY f.id DESC
+    ''', (session['usuario_id'],))
+    facturas = cursor.fetchall()
+    conn.close()
+    
+    return render_template('facturas.html', facturas=facturas)
+
+@app.route('/factura/nueva', methods=['GET', 'POST'])
+def nueva_factura():
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        cliente_id = request.form['cliente_id']
+        productos_json = request.form.get('productos', '[]')
+        
+        productos = json.loads(productos_json)
+        
+        if not cliente_id:
+            return jsonify({'error': 'Seleccione un cliente'}), 400
+        
+        if not productos:
+            return jsonify({'error': 'Agregue al menos un producto'}), 400
+        
+        try:
+            conn = conectar_db()
+            cursor = conn.cursor()
+            
+            # Calcular totales
+            subtotal = 0
+            for item in productos:
+                subtotal += item['precio'] * item['cantidad']
+            
+            iva_total = subtotal * IVA
+            total = subtotal + iva_total
+            
+            # Generar número de factura
+            numero_factura = generar_numero_factura()
+            fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Insertar factura
+            cursor.execute('''
+                INSERT INTO facturas (usuario_id, numero_factura, cliente_id, fecha, subtotal, iva, total, estado)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'pagada')
+            ''', (session['usuario_id'], numero_factura, cliente_id, fecha, subtotal, iva_total, total))
+            
+            factura_id = cursor.lastrowid
+            
+            # Insertar detalles y actualizar stock
+            for item in productos:
+                cursor.execute('''
+                    INSERT INTO factura_detalles (factura_id, producto_id, cantidad, precio_unitario, subtotal)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (factura_id, item['id'], item['cantidad'], item['precio'], item['precio'] * item['cantidad']))
+                
+                # Actualizar stock
+                cursor.execute('''
+                    UPDATE productos SET stock = stock - ? WHERE id = ? AND usuario_id = ?
+                ''', (item['cantidad'], item['id'], session['usuario_id']))
+            
+            conn.commit()
+            conn.close()
+            
+            return jsonify({'success': True, 'factura_id': factura_id, 'numero_factura': numero_factura})
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    # GET - Mostrar formulario
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT id, nombre, documento FROM clientes WHERE usuario_id = ? ORDER BY nombre', (session['usuario_id'],))
+    clientes = cursor.fetchall()
+    
+    cursor.execute('SELECT id, nombre, precio, stock FROM productos WHERE usuario_id = ? AND stock > 0 ORDER BY nombre', (session['usuario_id'],))
+    productos = cursor.fetchall()
+    
+    conn.close()
+    
+    return render_template('factura_nueva.html', clientes=clientes, productos=productos, iva=IVA*100)
+
+@app.route('/factura/ver/<int:id>')
+def ver_factura(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    # Obtener datos de la factura
+    cursor.execute('''
+        SELECT f.id, f.numero_factura, c.nombre, c.documento, c.telefono, c.direccion, 
+               f.fecha, f.subtotal, f.iva, f.total
+        FROM facturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        WHERE f.id = ? AND f.usuario_id = ?
+    ''', (id, session['usuario_id']))
+    
+    factura = cursor.fetchone()
+    
+    if not factura:
+        conn.close()
+        return redirect(url_for('listar_facturas'))
+    
+    # Obtener detalles de la factura
+    cursor.execute('''
+        SELECT p.nombre, fd.cantidad, fd.precio_unitario, fd.subtotal
+        FROM factura_detalles fd
+        JOIN productos p ON fd.producto_id = p.id
+        WHERE fd.factura_id = ?
+    ''', (id,))
+    
+    detalles = cursor.fetchall()
+    conn.close()
+    
+    return render_template('factura_ver.html', factura=factura, detalles=detalles, iva=IVA*100)
+
+@app.route('/factura/pdf/<int:id>')
+def factura_pdf(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    # Obtener datos de la factura
+    cursor.execute('''
+        SELECT f.id, f.numero_factura, c.nombre, c.documento, c.telefono, c.direccion, 
+               f.fecha, f.subtotal, f.iva, f.total, u.nombre as empresa
+        FROM facturas f
+        JOIN clientes c ON f.cliente_id = c.id
+        JOIN usuarios u ON f.usuario_id = u.id
+        WHERE f.id = ? AND f.usuario_id = ?
+    ''', (id, session['usuario_id']))
+    
+    factura = cursor.fetchone()
+    
+    if not factura:
+        conn.close()
+        return redirect(url_for('listar_facturas'))
+    
+    # Obtener detalles
+    cursor.execute('''
+        SELECT p.nombre, fd.cantidad, fd.precio_unitario, fd.subtotal
+        FROM factura_detalles fd
+        JOIN productos p ON fd.producto_id = p.id
+        WHERE fd.factura_id = ?
+    ''', (id,))
+    
+    detalles = cursor.fetchall()
+    conn.close()
+    
+    # Generar PDF
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=16, textColor=colors.HexColor('#667eea'))
+    normal_style = styles['Normal']
+    
+    elements = []
+    
+    # Encabezado
+    elements.append(Paragraph("HELPTECH-F", title_style))
+    elements.append(Paragraph("Sistema de Facturación Electrónica", styles['Heading3']))
+    elements.append(Paragraph(f"Usuario: {factura[10]}", normal_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Información de la factura
+    data_info = [
+        ["NÚMERO DE FACTURA:", factura[1]],
+        ["FECHA:", factura[6][:10]],
+        ["HORA:", factura[6][11:16]]
+    ]
+    
+    info_table = Table(data_info, colWidths=[2*inch, 3*inch])
+    info_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Información del cliente
+    elements.append(Paragraph("<b>INFORMACIÓN DEL CLIENTE</b>", styles['Heading4']))
+    data_cliente = [
+        ["Nombre:", factura[2]],
+        ["Documento:", factura[3] or "No especificado"],
+        ["Teléfono:", factura[4] or "No especificado"],
+        ["Dirección:", factura[5] or "No especificada"]
+    ]
+    
+    cliente_table = Table(data_cliente, colWidths=[1.5*inch, 3.5*inch])
+    cliente_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    elements.append(cliente_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Tabla de productos
+    elements.append(Paragraph("<b>DETALLE DE PRODUCTOS</b>", styles['Heading4']))
+    
+    table_data = [["CANT.", "PRODUCTO", "P. UNITARIO", "SUBTOTAL"]]
+    for detalle in detalles:
+        table_data.append([
+            str(detalle[1]),
+            detalle[0],
+            f"${detalle[2]:,.2f}",
+            f"${detalle[3]:,.2f}"
+        ])
+    
+    product_table = Table(table_data, colWidths=[0.8*inch, 3*inch, 1.2*inch, 1.2*inch])
+    product_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+    ]))
+    elements.append(product_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Totales
+    data_totales = [
+        ["SUBTOTAL:", f"${factura[7]:,.2f}"],
+        [f"IVA ({IVA*100:.0f}%):", f"${factura[8]:,.2f}"],
+        ["TOTAL A PAGAR:", f"${factura[9]:,.2f}"]
+    ]
+    
+    totales_table = Table(data_totales, colWidths=[3*inch, 2*inch])
+    totales_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('TEXTCOLOR', (0, 2), (1, 2), colors.HexColor('#c33')),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    elements.append(totales_table)
+    elements.append(Spacer(1, 0.2*inch))
+    
+    # Pie de página
+    elements.append(Paragraph("Gracias por su compra", styles['Italic']))
+    elements.append(Paragraph("Este documento es una factura de venta válida", styles['Normal']))
+    
+    doc.build(elements)
+    buffer.seek(0)
+    
+    response = make_response(buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'inline; filename=factura_{factura[1]}.pdf'
+    
+    return response
+
+@app.route('/factura/eliminar/<int:id>')
+def eliminar_factura(id):
+    if 'usuario_id' not in session:
+        return redirect(url_for('login'))
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    
+    # Restaurar stock de productos
+    cursor.execute('''
+        SELECT producto_id, cantidad FROM factura_detalles WHERE factura_id = ?
+    ''', (id,))
+    detalles = cursor.fetchall()
+    
+    for detalle in detalles:
+        cursor.execute('''
+            UPDATE productos SET stock = stock + ? WHERE id = ?
+        ''', (detalle[1], detalle[0]))
+    
+    # Eliminar detalles y factura
+    cursor.execute('DELETE FROM factura_detalles WHERE factura_id = ?', (id,))
+    cursor.execute('DELETE FROM facturas WHERE id = ? AND usuario_id = ?', (id, session['usuario_id']))
+    
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('listar_facturas'))
+
+# API para obtener productos
+@app.route('/api/productos')
+def api_productos():
+    if 'usuario_id' not in session:
+        return jsonify([])
+    
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, codigo, nombre, precio, stock FROM productos WHERE usuario_id = ? AND stock > 0', 
+                  (session['usuario_id'],))
+    productos = cursor.fetchall()
+    conn.close()
+    
+    productos_list = []
+    for p in productos:
+        productos_list.append({
+            'id': p[0],
+            'codigo': p[1],
+            'nombre': p[2],
+            'precio': p[3],
+            'stock': p[4]
+        })
+    
+    return jsonify(productos_list)
+
+# ============ INICIAR APLICACIÓN ============
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

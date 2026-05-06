@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ titulo }} - HelpTech-F</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HelpTech-F</div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('listar_clientes') }}">Clientes</a>
+            <a href="{{ url_for('listar_productos') }}">Productos</a>
+            <a href="{{ url_for('logout') }}">Cerrar Sesión</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>{{ titulo }}</h2>
+            
+            {% if error %}
+            <div class="error-message">{{ error }}</div>
+            {% endif %}
+            
+            {% if success %}
+            <div class="success-message">{{ success }}</div>
+            {% endif %}
+            
+            <form method="POST">
+                <div class="form-group">
+                    <label for="nombre">Nombre completo *</label>
+                    <input type="text" id="nombre" name="nombre" value="{{ cliente[1] if cliente else '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Correo electrónico</label>
+                    <input type="email" id="email" name="email" value="{{ cliente[2] if cliente else '' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="telefono">Teléfono</label>
+                    <input type="text" id="telefono" name="telefono" value="{{ cliente[3] if cliente else '' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="direccion">Dirección</label>
+                    <textarea id="direccion" name="direccion" rows="3" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 8px;">{{ cliente[4] if cliente else '' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="documento">Documento (Cédula/NIT)</label>
+                    <input type="text" id="documento" name="documento" value="{{ cliente[5] if cliente else '' }}">
+                </div>
+                
+                <button type="submit">Guardar Cliente</button>
+            </form>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="{{ url_for('listar_clientes') }}">← Volver a clientes</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Todos los derechos reservados 2025</p>
+    </footer>
+</body>
+</html>

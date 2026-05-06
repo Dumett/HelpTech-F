@@ -1,20 +1,36 @@
-{% extends "base.html" %}
-
-{% block content %}
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="container">
-            <h1 class="hero-title">Facturas y control</h1>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelpTech-F | Gestión de Facturas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HelpTech-F</div>
+        <div class="nav-links">
+            <a href="{{ url_for('index') }}">Inicio</a>
+            <a href="{{ url_for('login') }}">Iniciar Sesión</a>
+            <a href="{{ url_for('registro') }}">Registrarse</a>
         </div>
-    </section>
+    </nav>
 
-    <!-- Main Content -->
-    <section class="main-content">
-        <div class="container">
-            <div class="welcome-text">
-                <p>¡Bienvenido a HelpTech-F, la solución ideal para la gestión eficiente de facturación en tu empresa! Nuestro sistema está diseñado para optimizar tus procesos, garantizando seguridad, rapidez y cumplimiento normativo.</p>
-                <p>Con HelpTech-F, podrás gestionar tus facturas de manera sencilla e intuitiva, ahorrando tiempo y mejorando la productividad de tu negocio.</p>
+    <div class="container">
+        <div class="hero">
+            <h1>Facturas y control</h1>
+            <p>¡Bienvenido a HelpTech-F, la solución ideal para la gestión eficiente de facturación en tu empresa!<br>
+            Nuestro sistema está diseñado para optimizar tus procesos, garantizando seguridad, rapidez y cumplimiento normativo.</p>
+            <p>Con HelpTech-F, podrás gestionar tus facturas de manera sencilla e intuitiva, ahorrando tiempo y mejorando la productividad de tu negocio.</p>
+            <div>
+                <a href="{{ url_for('registro') }}" class="btn">Comenzar ahora</a>
+                <a href="{{ url_for('login') }}" class="btn btn-outline">Iniciar sesión</a>
             </div>
         </div>
-    </section>
-{% endblock %}
+    </div>
+
+    <footer>
+        <p>Todos los derechos reservados 2025</p>
+    </footer>
+</body>
+</html>

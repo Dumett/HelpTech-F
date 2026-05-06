@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ titulo }} - HelpTech-F</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HelpTech-F</div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('listar_clientes') }}">Clientes</a>
+            <a href="{{ url_for('listar_productos') }}">Productos</a>
+            <a href="{{ url_for('logout') }}">Cerrar Sesión</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>{{ titulo }}</h2>
+            
+            {% if error %}
+            <div class="error-message">{{ error }}</div>
+            {% endif %}
+            
+            <form method="POST">
+                <div class="form-group">
+                    <label for="codigo">Código de producto</label>
+                    <input type="text" id="codigo" name="codigo" value="{{ producto[1] if producto else '' }}" placeholder="Ej: PROD-001">
+                </div>
+                
+                <div class="form-group">
+                    <label for="nombre">Nombre del producto *</label>
+                    <input type="text" id="nombre" name="nombre" value="{{ producto[2] if producto else '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="descripcion">Descripción</label>
+                    <textarea id="descripcion" name="descripcion" rows="3" style="width: 100%; padding: 8px; border: 2px solid #e0e0e0; border-radius: 8px;">{{ producto[3] if producto else '' }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="precio">Precio *</label>
+                    <input type="number" id="precio" name="precio" step="0.01" value="{{ producto[4] if producto else '' }}" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="stock">Stock inicial</label>
+                    <input type="number" id="stock" name="stock" value="{{ producto[5] if producto else 0 }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="categoria">Categoría</label>
+                    <select id="categoria" name="categoria" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px;">
+                        <option value="">Seleccionar categoría</option>
+                        <option value="Electrónica" {% if producto and producto[6] == 'Electrónica' %}selected{% endif %}>Electrónica</option>
+                        <option value="Software" {% if producto and producto[6] == 'Software' %}selected{% endif %}>Software</option>
+                        <option value="Hardware" {% if producto and producto[6] == 'Hardware' %}selected{% endif %}>Hardware</option>
+                        <option value="Servicio" {% if producto and producto[6] == 'Servicio' %}selected{% endif %}>Servicio</option>
+                        <option value="Otros" {% if producto and producto[6] == 'Otros' %}selected{% endif %}>Otros</option>
+                    </select>
+                </div>
+                
+                <button type="submit">Guardar Producto</button>
+            </form>
+            
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="{{ url_for('listar_productos') }}">← Volver a productos</a>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Todos los derechos reservados 2025</p>
+    </footer>
+</body>
+</html>

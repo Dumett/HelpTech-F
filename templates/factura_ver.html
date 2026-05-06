@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura {{ factura[1] }} - HelpTech-F</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HelpTech-F</div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('listar_clientes') }}">Clientes</a>
+            <a href="{{ url_for('listar_productos') }}">Productos</a>
+            <a href="{{ url_for('listar_facturas') }}">Facturas</a>
+            <a href="{{ url_for('logout') }}">Cerrar Sesión</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h2>Factura {{ factura[1] }}</h2>
+                <div>
+                    <a href="{{ url_for('factura_pdf', id=factura[0]) }}" class="btn" style="width: auto; background: #4CAF50;" target="_blank">Descargar PDF</a>
+                    <a href="{{ url_for('listar_facturas') }}" class="btn" style="width: auto; background: #666;">Volver</a>
+                </div>
+            </div>
+            
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                <h3>Información de la Factura</h3>
+                <p><strong>Número:</strong> {{ factura[1] }}</p>
+                <p><strong>Fecha:</strong> {{ factura[6] }}</p>
+            </div>
+            
+            <div style="background: #f5f5f5; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                <h3>Información del Cliente</h3>
+                <p><strong>Nombre:</strong> {{ factura[2] }}</p>
+                <p><strong>Documento:</strong> {{ factura[3] or 'No especificado' }}</p>
+                <p><strong>Teléfono:</strong> {{ factura[4] or 'No especificado' }}</p>
+                <p><strong>Dirección:</strong> {{ factura[5] or 'No especificada' }}</p>
+            </div>
+            
+            <h3>Detalle de Productos</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                <thead>
+                    <tr style="background: #667eea; color: white;">
+                        <th style="padding: 12px; text-align: left;">Producto</th>
+                        <th style="padding: 12px; text-align: center;">Cantidad</th>
+                        <th style="padding: 12px; text-align: right;">Precio Unitario</th>
+                        <th style="padding: 12px; text-align: right;">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for detalle in detalles %}
+                    <tr style="border-bottom: 1px solid #ddd;">
+                        <td style="padding: 12px;">{{ detalle[0] }}</td>
+                        <td style="padding: 12px; text-align: center;">{{ detalle[1] }}</td>
+                        <td style="padding: 12px; text-align: right;">${{ '{:,.2f}'.format(detalle[2]) }}</td>
+                        <td style="padding: 12px; text-align: right;">${{ '{:,.2f}'.format(detalle[3]) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <div style="text-align: right; padding: 20px; background: #f5f5f5; border-radius: 10px;">
+                <p><strong>Subtotal:</strong> ${{ '{:,.2f}'.format(factura[7]) }}</p>
+                <p><strong>IVA ({{ iva }}%):</strong> ${{ '{:,.2f}'.format(factura[8]) }}</p>
+                <p style="font-size: 1.2em;"><strong>TOTAL:</strong> ${{ '{:,.2f}'.format(factura[9]) }}</p>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Todos los derechos reservados 2025</p>
+    </footer>
+</body>
+</html>

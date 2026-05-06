@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clientes - HelpTech-F</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HelpTech-F</div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('listar_clientes') }}">Clientes</a>
+            <a href="{{ url_for('listar_productos') }}">Productos</a>
+            <a href="{{ url_for('listar_facturas') }}">Facturas</a>
+            <a href="{{ url_for('logout') }}">Cerrar Sesión</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h2>Gestión de Clientes</h2>
+            <a href="{{ url_for('nuevo_cliente') }}" class="btn">+ Nuevo Cliente</a>
+        </div>
+        
+        <div class="card">
+            {% if clientes %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Email</th>
+                        <th>Teléfono</th>
+                        <th>Documento</th>
+                        <th>Fecha</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cliente in clientes %}
+                    <tr>
+                        <td>{{ cliente[1] }}</td>
+                        <td>{{ cliente[2] or '-' }}</td>
+                        <td>{{ cliente[3] or '-' }}</td>
+                        <td>{{ cliente[4] or '-' }}</td>
+                        <td>{{ cliente[5][:10] }}</td>
+                        <td>
+                            <a href="{{ url_for('editar_cliente', id=cliente[0]) }}">Editar</a>
+                            <a href="{{ url_for('eliminar_cliente', id=cliente[0]) }}" onclick="return confirm('¿Eliminar este cliente?')">Eliminar</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align: center; color: #666;">No hay clientes registrados. <a href="{{ url_for('nuevo_cliente') }}">Crear primer cliente</a></p>
+            {% endif %}
+        </div>
+    </div>
+
+    <footer>
+        <p>Todos los derechos reservados 2025 | HelpTech-F</p>
+    </footer>
+</body>
+</html>

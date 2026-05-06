@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productos - HelpTech-F</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HelpTech-F</div>
+        <div class="nav-links">
+            <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            <a href="{{ url_for('listar_clientes') }}">Clientes</a>
+            <a href="{{ url_for('listar_productos') }}">Productos</a>
+            <a href="#">Facturas</a>
+            <a href="{{ url_for('logout') }}">Cerrar Sesión</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h2>Gestión de Productos</h2>
+            <a href="{{ url_for('nuevo_producto') }}" class="btn" style="width: auto;">+ Nuevo Producto</a>
+        </div>
+        
+        <div class="card">
+            {% if productos %}
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+                        <th style="padding: 12px; text-align: left;">Código</th>
+                        <th style="padding: 12px; text-align: left;">Nombre</th>
+                        <th style="padding: 12px; text-align: left;">Descripción</th>
+                        <th style="padding: 12px; text-align: right;">Precio</th>
+                        <th style="padding: 12px; text-align: center;">Stock</th>
+                        <th style="padding: 12px; text-align: left;">Categoría</th>
+                        <th style="padding: 12px; text-align: center;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for producto in productos %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px;">{{ producto[1] or '-' }}</td>
+                        <td style="padding: 12px;">{{ producto[2] }}</td>
+                        <td style="padding: 12px;">{{ producto[3][:30] + '...' if producto[3] and producto[3]|length > 30 else producto[3] or '-' }}</td>
+                        <td style="padding: 12px; text-align: right;">${{ '{:,.2f}'.format(producto[4]) }}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            {% if producto[5] <= 5 %}
+                            <span style="color: #c33; font-weight: bold;">{{ producto[5] }}</span>
+                            {% else %}
+                            {{ producto[5] }}
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px;">{{ producto[6] or '-' }}</td>
+                        <td style="padding: 12px; text-align: center;">
+                            <a href="{{ url_for('editar_producto', id=producto[0]) }}" style="color: #667eea; margin-right: 10px;">Editar</a>
+                            <a href="{{ url_for('eliminar_producto', id=producto[0]) }}" style="color: #c33;" onclick="return confirm('¿Eliminar este producto?')">Eliminar</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align: center; color: #666;">No hay productos registrados. <a href="{{ url_for('nuevo_producto') }}">Crear primer producto</a></p>
+            {% endif %}
+        </div>
+    </div>
+
+    <footer>
+        <p>Todos los derechos reservados 2025</p>
+    </footer>
+</body>
+</html>
